@@ -11,9 +11,6 @@
     </td>
     <td>
       <a href="https://github.com/BlackPeaksZ/DublClearv2.0/releases/latest" download>
-    </td>
-    <td>
-      
   <button>
     ⬇️ Скачать DublClear.exe
   </button>
