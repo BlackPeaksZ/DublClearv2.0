@@ -7,7 +7,7 @@
 <table>
   <tr>
     <td>
-      <b> Ссылка на скачивание </b>
+      <a href="https://github.com/BlackPeaksZ/DublClearv2.0/releases/latest" download>
     </td>
     <td>
       
