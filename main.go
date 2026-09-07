@@ -13,7 +13,7 @@ import (
 
 func main() {
 	var answer string
-	fmt.Print("Начать поиск дубликатов? (д/н)")
+	fmt.Print("Начать поиск дубликатов? (д/н): ")
 	fmt.Scan(&answer)
 
 	if answer == "д" {
@@ -22,6 +22,7 @@ func main() {
 		os.Exit(0)
 	} else {
 		fmt.Println("Ошибка комманды, введите 'д' или 'н'")
+		os.Exit(0)
 	}
 }
 func search_file() {
@@ -41,10 +42,14 @@ func search_file() {
 	}
 
 	hash_map := make(map[string][]string)
-
+	file_cout := 0
 	path := "C:\\"
-
+	size_map := make(map[int64][]string)
 	filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
+		file_cout++
+		if file_cout%1000 == 0 {
+			fmt.Println("Обработано ", file_cout, " файлов")
+		}
 
 		if err != nil {
 			return nil
@@ -56,36 +61,57 @@ func search_file() {
 			for _, folder := range system_files {
 				if strings.Contains(path, folder) {
 					is_system = true
+					break
 				}
 			}
 			if is_system == true {
 				return nil
 			}
 
-			file, err := os.Open(path)
+			fileInfo, err := os.Stat(path)
 			if err != nil {
 				return nil
 			}
-			m := md5.New()
-			io.Copy(m, file)
-			file.Close()
-			hashBytes := m.Sum(nil)
-			md5 := hex.EncodeToString(hashBytes)
-			hash_map[md5] = append(hash_map[md5], path)
+			size := fileInfo.Size()
+			size_map[size] = append(size_map[size], path)
+
 		}
 
 		return nil
 	})
+	processed := 0
+	fmt.Println("Проверка дубликатов")
+
+	for _, paths := range size_map {
+		if len(paths) > 1 {
+			for _, path := range paths {
+				file, err := os.Open(path)
+				if err != nil {
+					continue
+				}
+				m := md5.New()
+				io.Copy(m, file)
+				file.Close()
+				hashBytes := m.Sum(nil)
+				md5 := hex.EncodeToString(hashBytes)
+				hash_map[md5] = append(hash_map[md5], path)
+				processed++
+				if processed%10 == 0 {
+					fmt.Println("Проверено файлов:", processed)
+				}
+			}
+
+		}
+	}
+	fmt.Println("Проверка завершена! Обработано файлов:", processed)
 	find_dubl(hash_map)
 
 }
 func find_dubl(hash_map map[string][]string) {
-	fmt.Println(hash_map)
 	total_dubl_file := 0
 	error_file := 0
 	success_file := 0
 	for md5 := range hash_map {
-		fmt.Println(hash_map[md5])
 
 		if len(hash_map[md5]) > 1 {
 			safe_file := len(hash_map[md5]) - 1
@@ -94,6 +120,11 @@ func find_dubl(hash_map map[string][]string) {
 		if len(hash_map[md5]) == 1 {
 			continue
 		}
+
+	}
+	if total_dubl_file == 0 {
+		fmt.Println("Дубликаты не найдены")
+		os.Exit(0)
 	}
 	fmt.Println("Колличество дубликатов: ", total_dubl_file)
 	var answer2 string
@@ -121,8 +152,8 @@ func find_dubl(hash_map map[string][]string) {
 
 			}
 		}
-		fmt.Println(error_file, " ошибок")
-		fmt.Println("Удалено ", success_file, " файлов")
+		fmt.Println(error_file, "ошибок")
+		fmt.Println("Удалено", success_file, "файлов")
 
 	}
 }
