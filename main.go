@@ -11,8 +11,6 @@ import (
 )
 
 func main() {
-	io.ByteReader()
-	hex.AppendDecode()
 
 	var answer string
 
@@ -46,16 +44,31 @@ func search_file() {
 				err_cout++
 				return nil
 			}
-			defer file.Close()
 			m := md5.New()
 			io.Copy(m, file)
+			file.Close()
 			hashBytes := m.Sum(nil)
-
+			md5 := hex.EncodeToString(hashBytes)
+			hash_map[md5] = append(hash_map[md5], path)
 		}
 		return nil
-
 	})
+	find_dubl(hash_map)
 
-	fmt.Println("Колличество файлов", file_cout)
-	fmt.Println("Колличество ошибок", err_cout)
+}
+func find_dubl(hash_map map[string][]string) {
+	fmt.Println(hash_map)
+	dubl_file := 0
+	for md5 := range hash_map {
+		fmt.Println(hash_map[md5])
+		if len(hash_map[md5]) > 1 {
+			dubl_file++
+			safe_file := len(hash_map[md5]) - 1
+			fmt.Println("Файлы для удаления: ", dubl_file+safe_file)
+		}
+		if len(hash_map[md5]) == 1 {
+			continue
+		}
+	}
+
 }
