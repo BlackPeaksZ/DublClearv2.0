@@ -70,7 +70,6 @@ func find_dubl(hash_map map[string][]string) {
 		if len(hash_map[md5]) == 1 {
 			continue
 		}
-
 	}
 	fmt.Println("Колличество дубликатов: ", total_dubl_file)
 	var answer2 string
@@ -82,7 +81,14 @@ func find_dubl(hash_map map[string][]string) {
 	}
 	if answer2 == "д" {
 		fmt.Println("Дубликаты будут удалены")
-
+		for md5 := range hash_map {
+			if len(hash_map[md5]) > 1 {
+				paths := hash_map[md5]
+				for i := 1; i < len(paths); i++ {
+					del_path := paths[i]
+					os.Remove(del_path)
+				}
+			}
+		}
 	}
-
 }
