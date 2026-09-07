@@ -8,13 +8,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func main() {
-
 	var answer string
-
-	fmt.Scan("Начать поиск дубликатов? (д/н)", &answer)
+	fmt.Print("Начать поиск дубликатов? (д/н)")
+	fmt.Scan(&answer)
 
 	if answer == "д" {
 		search_file()
@@ -25,22 +25,45 @@ func main() {
 	}
 }
 func search_file() {
+	system_files := []string{
+		"Windows",
+		"Program Files",
+		"Program Files (x86)",
+		"System Volume Information",
+		"$Recycle.Bin",
+		"Boot",
+		"ProgramData",
+		"System32",
+		"SysWOW64",
+		"WinSxS",
+		"Microsoft.NET",
+		"Common Files",
+	}
 
 	hash_map := make(map[string][]string)
 
 	path := "C:\\"
-	file_cout, err_cout := 0, 0
 
 	filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
+
 		if err != nil {
-			err_cout++
 			return nil
-		} else if !d.IsDir() == true {
-			//!-считает кол-во файлов, без !-считает папки
-			file_cout++
+		}
+
+		if !d.IsDir() {
+			is_system := false
+			//!-считает кол-во файлов, без !-считает
+			for _, folder := range system_files {
+				if strings.Contains(path, folder) {
+					is_system = true
+				}
+			}
+			if is_system == true {
+				return nil
+			}
+
 			file, err := os.Open(path)
 			if err != nil {
-				err_cout++
 				return nil
 			}
 			m := md5.New()
@@ -50,6 +73,7 @@ func search_file() {
 			md5 := hex.EncodeToString(hashBytes)
 			hash_map[md5] = append(hash_map[md5], path)
 		}
+
 		return nil
 	})
 	find_dubl(hash_map)
@@ -57,13 +81,13 @@ func search_file() {
 }
 func find_dubl(hash_map map[string][]string) {
 	fmt.Println(hash_map)
-	dubl_file := 0
 	total_dubl_file := 0
+	error_file := 0
+	success_file := 0
 	for md5 := range hash_map {
 		fmt.Println(hash_map[md5])
 
 		if len(hash_map[md5]) > 1 {
-			dubl_file++
 			safe_file := len(hash_map[md5]) - 1
 			total_dubl_file += safe_file
 		}
@@ -86,9 +110,19 @@ func find_dubl(hash_map map[string][]string) {
 				paths := hash_map[md5]
 				for i := 1; i < len(paths); i++ {
 					del_path := paths[i]
-					os.Remove(del_path)
+					err := os.Remove(del_path)
+					if err != nil {
+						error_file++
+					}
+					if err == nil {
+						success_file++
+					}
 				}
+
 			}
 		}
+		fmt.Println(error_file, " ошибок")
+		fmt.Println("Удалено ", success_file, " файлов")
+
 	}
 }
