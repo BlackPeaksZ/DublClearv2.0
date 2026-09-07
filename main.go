@@ -14,8 +14,7 @@ func main() {
 
 	var answer string
 
-	fmt.Println("Начать поиск дубликатов? (д/н)")
-	fmt.Scan(&answer)
+	fmt.Scan("Начать поиск дубликатов? (д/н)", &answer)
 
 	if answer == "д" {
 		search_file()
@@ -59,16 +58,31 @@ func search_file() {
 func find_dubl(hash_map map[string][]string) {
 	fmt.Println(hash_map)
 	dubl_file := 0
+	total_dubl_file := 0
 	for md5 := range hash_map {
 		fmt.Println(hash_map[md5])
+
 		if len(hash_map[md5]) > 1 {
 			dubl_file++
 			safe_file := len(hash_map[md5]) - 1
-			fmt.Println("Файлы для удаления: ", dubl_file+safe_file)
+			total_dubl_file += safe_file
 		}
 		if len(hash_map[md5]) == 1 {
 			continue
 		}
+
+	}
+	fmt.Println("Колличество дубликатов: ", total_dubl_file)
+	var answer2 string
+	fmt.Println("Удалить дубликаты?(д/н): ")
+	fmt.Scan(&answer2)
+	if answer2 == "н" {
+		fmt.Println("Дубликаты не будут удалены")
+		os.Exit(0)
+	}
+	if answer2 == "д" {
+		fmt.Println("Дубликаты будут удалены")
+
 	}
 
 }
