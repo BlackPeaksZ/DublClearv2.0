@@ -3,11 +3,11 @@ package main
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -18,33 +18,40 @@ import (
 )
 
 func main() {
-	myApp := app.New()
-	myWindow := myApp.NewWindow("DublClear")
-	myWindow.Resize(fyne.NewSize(500, 400))
+	a := app.New()
+	w := a.NewWindow("DublClear")
+	w.Resize(fyne.NewSize(500, 250))
 
-	statusLabel := widget.NewLabel("Готов к работе")
-	progressLabel := widget.NewLabel("")
+	label := widget.NewLabel("Обработано файлов: ")
+	startText := widget.NewLabel("Начать поиск дубликатов?")
+	progress := widget.NewProgressBar()
+	progress.Min = 0
+	progress.Max = 100
 
-	var startButton *widget.Button
-	startButton = widget.NewButton("Начать поиск дубликатов", func() {
-		startButton.Disable()
-		statusLabel.SetText("Идёт сканирование...")
-		go search_file(statusLabel, progressLabel, startButton, myWindow)
+	var startBtn *widget.Button
+
+	startBtn = widget.NewButton("Да", func() {
+		startBtn.Disable()
+		progress.SetValue(0)
+		go search_file(label, progress, startBtn, w)
 	})
 
-	content := container.NewVBox(
-		widget.NewLabel("DublClear - очистка от дубликатов"),
-		widget.NewLabel(""),
-		startButton,
-		statusLabel,
-		progressLabel,
-	)
+	quitBtn := widget.NewButton("Нет", func() { a.Quit() })
 
-	myWindow.SetContent(content)
-	myWindow.ShowAndRun()
+	w.SetContent(container.NewVBox(
+		startText,
+		progress,
+		label,
+		container.NewHBox(startBtn, quitBtn),
+	))
+
+	w.ShowAndRun()
 }
 
-func search_file(statusLabel *widget.Label, progressLabel *widget.Label, startButton *widget.Button, myWindow fyne.Window) {
+func search_file(label *widget.Label, progress *widget.ProgressBar, startBtn *widget.Button, w fyne.Window) {
+
+	defer startBtn.Enable()
+
 	system_files := []string{
 		"Windows",
 		"Program Files",
@@ -65,12 +72,10 @@ func search_file(statusLabel *widget.Label, progressLabel *widget.Label, startBu
 	path := "C:\\"
 	size_map := make(map[int64][]string)
 
-	statusLabel.SetText("Сканирование файлов...")
-
-	filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
+	filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
 		file_cout++
 		if file_cout%1000 == 0 {
-			progressLabel.SetText("Обработано " + strconv.Itoa(file_cout) + " файлов")
+			label.SetText(fmt.Sprintf("Обработано файлов: %d", file_cout))
 		}
 
 		if err != nil {
@@ -78,104 +83,129 @@ func search_file(statusLabel *widget.Label, progressLabel *widget.Label, startBu
 		}
 
 		if !d.IsDir() {
+			parts := strings.Split(p, string(os.PathSeparator))
 			is_system := false
-			for _, folder := range system_files {
-				if strings.Contains(path, folder) {
-					is_system = true
+			for _, part := range parts {
+				for _, folder := range system_files {
+					if strings.EqualFold(part, folder) {
+						is_system = true
+						break
+					}
+				}
+				if is_system {
 					break
 				}
 			}
-			if is_system == true {
+			if is_system {
 				return nil
 			}
 
-			fileInfo, err := os.Stat(path)
+			fileInfo, err := os.Stat(p)
 			if err != nil {
 				return nil
 			}
 			size := fileInfo.Size()
-			size_map[size] = append(size_map[size], path)
+			size_map[size] = append(size_map[size], p)
 		}
+
 		return nil
 	})
 
-	statusLabel.SetText("Проверка дубликатов...")
 	processed := 0
+	label.SetText("Проверка дубликатов...")
+
+	total_groups := 0
+	for _, paths := range size_map {
+		if len(paths) > 1 {
+			total_groups++
+		}
+	}
+
+	processed_groups := 0
 
 	for _, paths := range size_map {
 		if len(paths) > 1 {
-			for _, path := range paths {
-				file, err := os.Open(path)
+			for _, p := range paths {
+				file, err := os.Open(p)
 				if err != nil {
 					continue
 				}
 				m := md5.New()
-				io.Copy(m, file)
+				if _, err := io.Copy(m, file); err != nil {
+					file.Close()
+					continue
+				}
 				file.Close()
 				hashBytes := m.Sum(nil)
-				md5 := hex.EncodeToString(hashBytes)
-				hash_map[md5] = append(hash_map[md5], path)
+				hash := hex.EncodeToString(hashBytes)
+				hash_map[hash] = append(hash_map[hash], p)
 				processed++
 				if processed%10 == 0 {
-					progressLabel.SetText("Проверено файлов: " + strconv.Itoa(processed))
+					label.SetText(fmt.Sprintf("Проверено файлов: %d", processed))
 				}
+			}
+		}
+
+		if len(paths) > 1 {
+			processed_groups++
+			if total_groups > 0 {
+				progress.SetValue(float64(processed_groups) / float64(total_groups) * 100)
 			}
 		}
 	}
 
-	progressLabel.SetText("Проверка завершена! Обработано файлов: " + strconv.Itoa(processed))
-	statusLabel.SetText("Поиск дубликатов завершён")
-	find_dubl(hash_map, statusLabel, progressLabel, startButton, myWindow)
+	label.SetText(fmt.Sprintf("Проверка завершена! Обработано файлов: %d", processed))
+	progress.SetValue(100)
+
+	find_dubl(hash_map, label, progress, startBtn, w)
 }
 
-func find_dubl(hash_map map[string][]string, statusLabel *widget.Label, progressLabel *widget.Label, startButton *widget.Button, myWindow fyne.Window) {
+func find_dubl(hash_map map[string][]string, label *widget.Label, progress *widget.ProgressBar, startBtn *widget.Button, w fyne.Window) {
+
 	total_dubl_file := 0
 	error_file := 0
 	success_file := 0
 
-	for md5 := range hash_map {
-		if len(hash_map[md5]) > 1 {
-			safe_file := len(hash_map[md5]) - 1
-			total_dubl_file += safe_file
+	for _, paths := range hash_map {
+		if len(paths) > 1 {
+			total_dubl_file += len(paths) - 1
 		}
 	}
 
 	if total_dubl_file == 0 {
-		statusLabel.SetText("Дубликаты не найдены!")
-		progressLabel.SetText("")
-		startButton.Enable()
-		dialog.ShowInformation("Результат", "Дубликаты не найдены!", myWindow)
+		label.SetText("Дубликаты не найдены")
+		dialog.ShowInformation("Результат", "Дубликаты не найдены!", w)
 		return
 	}
 
-	statusLabel.SetText("Найдено дубликатов: " + strconv.Itoa(total_dubl_file))
-	progressLabel.SetText("")
+	label.SetText(fmt.Sprintf("Найдено дубликатов: %d", total_dubl_file))
 
 	dialog.ShowConfirm("Удаление дубликатов",
-		"Найдено "+strconv.Itoa(total_dubl_file)+" дубликатов. Удалить?",
-		func(confirmed bool) {
-			if confirmed {
-				statusLabel.SetText("Удаление дубликатов...")
-				for md5 := range hash_map {
-					if len(hash_map[md5]) > 1 {
-						paths := hash_map[md5]
-						for i := 1; i < len(paths); i++ {
-							del_path := paths[i]
-							err := os.Remove(del_path)
-							if err != nil {
-								error_file++
-							}
-							if err == nil {
-								success_file++
-							}
+		fmt.Sprintf("Найдено %d дубликатов. Удалить?", total_dubl_file),
+		func(ok bool) {
+			if !ok {
+				label.SetText("Удаление отменено")
+				return
+			}
+
+			label.SetText("Удаление дубликатов...")
+
+			for _, paths := range hash_map {
+				if len(paths) > 1 {
+					for i := 1; i < len(paths); i++ {
+						del_path := paths[i]
+						err := os.Remove(del_path)
+						if err != nil {
+							error_file++
+						} else {
+							success_file++
 						}
 					}
 				}
-				statusLabel.SetText("Готово! Удалено " + strconv.Itoa(success_file) + " файлов, " + strconv.Itoa(error_file) + " ошибок")
-				progressLabel.SetText("")
-			} else {
-				statusLabel.SetText("Удаление отменено")
 			}
-			startButton.Enable()
-		}, myWindow)
+
+			label.SetText(fmt.Sprintf("Готово! Удалено: %d, ошибок: %d", success_file, error_file))
+			dialog.ShowInformation("Результат удаления",
+				fmt.Sprintf("Удалено файлов: %d\nОшибок: %d", success_file, error_file), w)
+		}, w)
 }
